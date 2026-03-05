@@ -403,17 +403,29 @@ print(f"Saved -> {output_path}")
 notebooklm-intellibus/
 
 ├── notebooklm-intellibus.client/
+
 │   React + Vite frontend
+
 │
 ├── notebooklm-intellibus.api/
+
 │   NestJS backend
+
 │
+
 ├── slides.py
+
 │   PPTX watermark removal + logo replacement
+
 │
+
 ├── image_pipeline.py
+
 │   PNG processing pipeline
+
 │
+
 └── png-to-avif/
+
     convert.py
     PNG → AVIF conversion script
