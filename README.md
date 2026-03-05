@@ -1,278 +1,419 @@
-# NotebookLM Video Processor
+### NotebookLM Preprocessor – Setup & Run Guide
+## Overview
 
-Automates post-processing of videos exported from NotebookLM. Takes raw exports, enhances visual quality, removes the NotebookLM watermark, adds an Intellibus logo, and AI-upscales the result.
+This project provides a media processing dashboard and backend pipeline that:
 
-## Features
+- Removes NotebookLM watermarks
 
-- **Visual Enhancement** — Adjustable saturation and contrast via FFmpeg
-- **Logo Swap** — Removes NotebookLM watermark, overlays Intellibus branding
-- **AI Upscaling** — Keyframe-based upscaling via Replicate's Real-ESRGAN model
-- **CLI & API** — Run as a one-off script or start the NestJS server for endpoint access
+- Replaces them with your logo
 
----
+Supported Media Types
 
-## Prerequisites
+Slide decks
 
-- **Node.js** v18+ (LTS recommended)
-- **FFmpeg** installed and available in PATH
-  - Windows: `winget install ffmpeg` or download from https://ffmpeg.org/download.html
-  - Mac: `brew install ffmpeg`
-  - Linux: `sudo apt install ffmpeg`
-- **Python 3.10+** available as `python` or `py` (used for PPTX/PNG logo replacement)
-  - Install required Python packages:
-    - `python -m pip install python-pptx pillow numpy`
-    - or on Windows: `py -m pip install python-pptx pillow numpy`
-- **Replicate Account** (for AI upscaling) — see [Replicate Setup](#replicate-setup)
+.pptx
 
----
+.png slides
 
-## Project Structure
+Videos
 
+.mp4
+
+Infographics
+
+.png → processed .png / .avif
+
+Tech Stack
+
+- Frontend
+
+- React
+
+- Vite
+(notebooklm-intellibus.client)
+
+Backend
+
+- NestJS
+(notebooklm-intellibus.api)
+
+Python Utilities
+
+slides.py
 ```
-notebooklm-intellibus/
-├── notebooklm-intellibus.api/    # NestJS backend (video processing)
-├── notebooklm-intellibus.client/ # React frontend (status dashboard)
-├── assets/                       # Logo files (intellibus_logo.png)
-└── AGENTS.md                     # Agent guidance for AI assistants
+image_pipeline.py
 ```
+## Media Processing
 
----
+FFmpeg (video + PNG → AVIF)
 
-## Quick Start
+## 1. Prerequisites
 
-### 1. Clone & Install Dependencies
+Install the following:
 
-```bash
-# Clone the repo
-git clone <repo-url>
-cd notebooklm-intellibus
+- Node
 
-# Install API dependencies
-cd notebooklm-intellibus.api
-npm install
+- Node.js v18+ recommended
 
-# Install client dependencies (React dashboard)
-cd ../notebooklm-intellibus.client
-npm install
+- npm v9+ recommended
+
+- Python
+
+- Python 3.10+
+
+Accessible as:
 ```
-
-### 2. Configure Environment
-
-```bash
-cd notebooklm-intellibus.api
-
-# Copy example config
-cp .env.example .env
-
-# Edit .env with your settings (see Environment Variables below)
+python
 ```
-
-### 3. Add Logo File
-
-Place your `intellibus_logo.png` file in the `assets/` folder at the project root. The logo should be a transparent PNG.
-
-### 4. Run the Processor
-
-**Option A: CLI (Single Video)**
-
-```bash
-cd notebooklm-intellibus.api
-npm run process -- "C:\path\to\your\video.mp4"
+or
 ```
-
-Output: `video_processed.mp4` saved in the same folder as the input.
-
-**Option B: API Server (Video-only pipeline)**
-
-```bash
-cd notebooklm-intellibus.api
-npm run start:dev
+py
 ```
+## FFmpeg
 
-The server starts at `http://localhost:3000`. Use the pipeline endpoint:
+Must be installed and available in PATH.
 
-```bash
-curl -X POST "http://localhost:3000/pipeline/process?inputPath=C:/path/to/video.mp4"
+Check installation:
 ```
-
-**Option C: Full Media Dashboard (Slides / Video / Infographics)**
-
-1. **Start the API with Python configured** (from `notebooklm-intellibus.api`):
-
-   ```bash
-   # Windows PowerShell, if Python runs as "py"
-   $env:PYTHON_CMD="py"; npm run start:dev
-
-   # or if Python runs as "python"
-   $env:PYTHON_CMD="python"; npm run start:dev
-   ```
-
-   On Unix shells:
-
-   ```bash
-   export PYTHON_CMD=python   # or py
-   npm run start:dev
-   ```
-
-   The API will listen on `http://localhost:3000` and expose:
-
-   - `POST /pipeline/process-media` — main media pipeline endpoint used by the UI
-   - `GET /pipeline/download?file=...` — download processed output
-
-2. **Start the React client** (from `notebooklm-intellibus.client`):
-
-   ```bash
-   npm run dev
-   ```
-
-   Vite will print a URL like `http://localhost:5173` or `http://localhost:5174`. Open it in your browser.
-
-3. **Use the dashboard**:
-
-   - Pick **Media Type**:
-     - Slide Deck (PPTX or PNG slides)
-     - Video (MP4)
-     - Infographics (PNG)
-   - Upload your **media files**
-   - Upload your **company logo** (PNG with transparency recommended)
-   - Click **Process Media**
-   - When complete, click **Download processed output** to save the processed PPTX/MP4/PNG/AVIF.
-
----
-
-## Environment Variables
-
-Create a `.env` file in `notebooklm-intellibus.api/` with these settings:
-
-```env
-# Video Enhancement
-SATURATION=1.5              # Color saturation multiplier (1.0 = no change)
-CONTRAST=1.2                # Contrast multiplier (1.0 = no change)
-
-# NotebookLM Logo Coordinates (for removal)
-# Measure these from your actual NotebookLM export frames
-NOTEBOOKLM_LOGO_X=1096
-NOTEBOOKLM_LOGO_Y=662
-NOTEBOOKLM_LOGO_W=143
-NOTEBOOKLM_LOGO_H=18
-
-# Intellibus Logo Position
-INTELLIBUS_LOGO_X=1096
-INTELLIBUS_LOGO_Y=662
-INTELLIBUS_LOGO_SCALE=0.5
-
-# Replicate API (Required for upscaling)
-REPLICATE_API_TOKEN=r8_xxxxxxxxxxxxxxxxxxxx
-
-# Keyframe Upscaling Settings
-UPSCALE_SCALE=2             # 2x or 4x upscale factor
-FRAME_PARALLEL_LIMIT=5      # Concurrent API calls (reduce if rate-limited)
-MAX_FRAME_WIDTH=1920        # Auto-downscale frames wider than this
-SECONDS_PER_KEYFRAME=3      # Extract 1 keyframe every N seconds
-
-# Cleanup
-CLEANUP_INTERMEDIATE_FILES=true
-```
-
-### Tuning `SECONDS_PER_KEYFRAME`
-
-This controls how many keyframes are extracted for upscaling:
-
-| Value   | Behavior                                                     |
-| ------- | ------------------------------------------------------------ |
-| **2**   | More keyframes, smoother result, slower, more API calls      |
-| **3**   | Balanced (recommended for most NotebookLM videos)            |
-| **4-5** | Fewer keyframes, faster, cheaper, may miss quick transitions |
-
-**Don't set too low** (< 2) — processing becomes very slow and expensive.
-**Don't set too high** (> 5) — may skip slide transitions, losing detail.
-
----
-
-## Replicate Setup
-
-AI upscaling uses [Replicate](https://replicate.com/)'s hosted Real-ESRGAN model. This is a **paid service** (pay-per-prediction).
-
-### Creating an Account
-
-1. Go to https://replicate.com/ and sign up
-2. Navigate to **Account Settings** → **API Tokens**
-3. Create a new token and copy it
-4. Add to your `.env` file as `REPLICATE_API_TOKEN`
-
-### Pricing
-
-- Model: `nightmareai/real-esrgan`
-- Cost: ~$0.0023 per image (as of 2024)
-- A 90-second video with `SECONDS_PER_KEYFRAME=3` = ~30 keyframes = ~$0.07
-
-### Shared Token Usage
-
-If multiple people share one Replicate token:
-
-1. **Reduce `FRAME_PARALLEL_LIMIT`** to 2-3 (instead of 5) to avoid rate limits
-2. Coordinate processing times to avoid simultaneous heavy usage
-3. Monitor your Replicate dashboard for usage spikes
-
-For teams, consider having each person create their own Replicate account (free tier includes some credits).
-
----
-
-## API Endpoints
-
-When running the server (`npm run start:dev`):
-
-| Endpoint                          | Method | Description                               |
-| --------------------------------- | ------ | ----------------------------------------- |
-| `/pipeline/process?inputPath=...` | POST   | Run full pipeline on a video              |
-| `/pipeline/status`                | GET    | Check if pipeline is currently processing |
-| `/enhance?inputPath=...`          | POST   | Run enhancement only                      |
-| `/logo?inputPath=...`             | POST   | Run logo swap only                        |
-| `/upscale?inputPath=...`          | POST   | Run upscaling only                        |
-
----
-
-## Troubleshooting
-
-### "FFmpeg not found"
-
-Ensure FFmpeg is installed and in your system PATH:
-
-```bash
 ffmpeg -version
 ```
+## Git
 
-### Rate Limiting (429 errors)
+- Used to clone the repository.
 
-Reduce `FRAME_PARALLEL_LIMIT` in your `.env` to 2 or 3.
+## Required Python Packages
 
-### CUDA Out of Memory
-
-The `MAX_FRAME_WIDTH=1920` setting auto-downscales large frames. If you still see OOM errors, try lowering this to 1280.
-
-### Logo in wrong position
-
-NotebookLM export dimensions may vary. Extract a frame and re-measure coordinates:
-
-```bash
-ffmpeg -ss 5 -i input.mp4 -frames:v 1 frame.png
+Install into the same Python interpreter used by the backend.
 ```
+pip install python-pptx pillow numpy
+```
+Windows users commonly run:
+```
+py -m pip install python-pptx pillow numpy
+```
+## 2. Clone the Repository
+```
+git clone <your-github-url>.git
+cd NotebookLM\ Preprocessor/notebooklm-intellibus
+```
+Adjust the path depending on where the repo was cloned.
 
-Open `frame.png` in an image editor and find the exact watermark position.
+## 3. Backend Setup (notebooklm-intellibus.api)
+## 3.1 Install Dependencies
+```
+cd notebooklm-intellibus.api
+npm install
+```
+## 3.2 Environment Variables
 
----
+An .env.example file is included.
 
-## Contributing
+Create your environment file:
+```
+cp .env.example .env
+```
+Then open .env and configure:
 
-This is a private repository. If you'd like to make changes:
+API keys (if required)
 
-1. Discuss the change with the team first
-2. Create a feature branch
-3. Submit a Pull Request for review
-4. **Do not force push to main**
+Logo replacement settings
 
----
+Other pipeline configuration
 
-## License
+Defaults typically work for local development.
 
-Private — All rights reserved.
+## 3.3 Ensure Python & FFmpeg Are Available
+
+## Python
+
+Check:
+```
+py --version
+```
+or
+```
+python --version
+```
+## FFmpeg
+ffmpeg -version
+
+If either command fails, install them and ensure they are in PATH.
+
+## 3.4 Start the Backend (NestJS)
+
+Inside:
+
+notebooklm-intellibus.api
+Windows PowerShell (Python = py)
+```
+$env:PYTHON_CMD="py";
+npm run start:dev
+```
+Windows (Python = python)
+```
+$env:PYTHON_CMD="python"; npm run start:dev
+```
+macOS / Linux
+```
+export PYTHON_CMD=python
+npm run start:dev
+```
+## Backend Endpoints
+
+Server runs on:
+```
+http://localhost:3000
+```
+Available routes:
+```
+POST /pipeline/process-media
+GET  /pipeline/download?file=...
+GET  /pipeline/status
+```
+Successful startup message:
+```
+Nest application successfully started
+```
+## 4. Frontend Setup (notebooklm-intellibus.client)
+
+Open a new terminal.
+
+## 4.1 Install Dependencies
+```
+cd notebooklm-intellibus.client
+npm install
+```
+## 4.2 Start the Frontend
+```
+npm run dev
+```
+Vite will print a local URL such as:
+```
+http://localhost:5173
+```
+or
+```
+http://localhost:5174
+```
+Open the URL in your browser.
+
+## 5. Using the Media Dashboard
+
+With both frontend and backend running:
+
+Open:
+```
+http://localhost:5173
+```
+You will see the Media Watermark & Logo Pipeline dashboard.
+
+## 5.1 Choose Media Type
+Slide Deck
+
+Upload:
+
+- One .pptx file
+
+OR multiple .png slides
+
+Output:
+
+- Processed .pptx
+
+- Processed .png
+
+- Video
+
+Upload:
+
+- Single .mp4
+
+Select logo position:
+
+- Top-left
+
+- Top-right
+
+- Bottom-left
+
+- Bottom-right
+
+Output:
+
+- Processed .mp4 with:
+
+- watermark removed
+
+- replacement logo added
+
+Infographics
+
+Upload:
+
+- One or more .png files
+(Current backend processes one at a time)
+
+Output:
+
+- Processed .png
+
+- Optional .avif (lossless PNG → AVIF via FFmpeg)
+
+5.2 Upload Logo
+
+In the Logo Replacement panel:
+
+Upload a logo file.
+
+Recommended:
+
+.png
+
+- Transparent background
+
+- 256×256 or larger
+
+5.3 Run the Pipeline
+
+Click:
+
+- Process Media
+
+The dashboard will display:
+
+- Progress percentage
+
+- Current pipeline stage
+
+- Name of file currently processing
+
+Pipeline stages include:
+
+- Upload validation
+
+- Watermark detection
+
+- Logo replacement
+
+- Reconstruction
+
+## 5.4 Download the Result
+
+After processing finishes:
+
+A link appears:
+
+Download processed output
+
+The link points to:
+```
+http://localhost:3000/pipeline/download
+```
+Click to save the processed file.
+
+## 6. Troubleshooting
+## 6.1 "Failed to fetch" in the Frontend
+
+Verify the backend is running.
+
+Visit:
+```
+http://localhost:3000/pipeline/status
+```
+Expected response:
+```
+{"isProcessing": false}
+```
+If not:
+
+- Ensure npm run start:dev is running
+
+Check the backend terminal for errors
+
+## 6.2 CORS Errors
+
+Backend enables CORS with:
+```
+app.enableCors({ origin: true });
+```
+Verify:
+
+API runs on
+```
+http://localhost:3000
+```
+Frontend runs on
+```
+http://localhost:5173
+```
+or
+```
+http://localhost:5174
+```
+## 6.3 Python Not Found / Exit Code 9009
+
+Example error:
+```
+Python was not found; run without arguments to install from the Microsoft Store
+```
+or
+```
+Exit code 9009
+```
+Fix:
+
+Check Python:
+```
+py --version
+```
+Then start backend with:
+```
+$env:PYTHON_CMD="py"; npm run start:dev
+```
+## 6.4 Python Module Error
+
+Example:
+```
+ModuleNotFoundError: No module named 'pptx'
+```
+Install packages:
+```
+py -m pip install python-pptx pillow numpy
+```
+or
+```
+python -m pip install python-pptx pillow numpy
+```
+Restart backend afterward.
+
+6.5 Unicode Errors in slides.py
+
+If you see:
+```
+UnicodeEncodeError
+```
+Ensure print statements contain only ASCII characters.
+
+Example:
+```
+print(f"Slide {slide_num}")
+print(f"Saved -> {output_path}")
+```
+## 7. Project Structure
+notebooklm-intellibus/
+
+├── notebooklm-intellibus.client/
+│   React + Vite frontend
+│
+├── notebooklm-intellibus.api/
+│   NestJS backend
+│
+├── slides.py
+│   PPTX watermark removal + logo replacement
+│
+├── image_pipeline.py
+│   PNG processing pipeline
+│
+└── png-to-avif/
+    convert.py
+    PNG → AVIF conversion script
